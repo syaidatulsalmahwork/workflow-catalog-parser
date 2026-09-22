@@ -1,0 +1,48 @@
+Parser Code Reference (C#)
+
+Same run style as Stage. This is a new catalog parser. Do not use the old
+ApolloX / Stage project.
+
+------------------------------------------------
+1. SQL
+------------------------------------------------
+In SSMS create an empty database named TD2_PARSER2
+(or another name — then change Initial Catalog below).
+Do not use APOLLOX_FINAL.
+
+------------------------------------------------
+2. Config
+------------------------------------------------
+Edit:
+
+  C:\Users\syaidatul.salmah\source\repos\AI-Parser-Development\C#\Config\appsettings.json
+
+  ConnectionStrings:DefaultConnection
+    Data Source  = your SQL instance (Stage used PNG-L03560\SQLEXPRESS01)
+    Initial Catalog = TD2_PARSER2
+
+  FileProcessing
+    PreParsedFolder = folder of *.zip to parse  (inbox)
+    BadFolder       = empty / invalid zips
+    MoveFolder      = Archive after a good parse
+
+Create those three folders if they do not exist. The app also creates them.
+
+------------------------------------------------
+3. Run (as usual)
+------------------------------------------------
+Open ParserCodeReference.csproj (or the .sln) in Visual Studio.
+Put one or more logfile zips in PreParsedFolder.
+Press F5.
+
+Console shows grammar / DIMM / loop / ECC counts.
+Good zips move to Archive. Bad zips move to Bad.
+SQL gets five tables: test_sessions, dimm_results, hpl_loop_metrics,
+ecc_events, extraction_manifest. Re-running the same log replaces that session.
+
+------------------------------------------------
+4. Extras later (workflow)
+------------------------------------------------
+Leave Extras\ empty for this test.
+Later the agent adds Extras\v2.json (new columns). Next F5 ALTERs those
+columns on the same five tables.
