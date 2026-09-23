@@ -74,6 +74,7 @@ internal static class Program
                     Console.WriteLine(
                         $"{session["log_file"]} grammar={session["grammar"]} class={session["test_class"]} " +
                         $"dimms={bundle["dimm_results"].Count} loops={bundle["hpl_loop_metrics"].Count} ecc={bundle["ecc_events"].Count}");
+                    Console.WriteLine($"session_id={session["session_id"]}");
                     sql.Save(bundle, extras);
                     parsed++;
                 }
