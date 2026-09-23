@@ -1,0 +1,74 @@
+# Catalog parser. Runs on the lab PC Actions runner, not ubuntu-latest.
+# Studio: Create an issue (ExtraExtract body) then dispatch event run-parser
+# with client_payload.issue_number.
+
+name: Run catalog parser
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Mailbox issue number
+        required: false
+  repository_dispatch:
+    types: [run-parser]
+
+jobs:
+  parse:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply ExtraExtract from mailbox issue
+        if: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
+        shell: pwsh
+        run: |
+          $repo = $env:GITHUB_REPOSITORY
+          $n = $env:ISSUE_NUMBER
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept        = "application/vnd.github+json"
+          }
+          $issue = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/issues/$n" -Headers $headers
+          $code = [string]$issue.body
+          if ($code -match '(?s)```(?:csharp|cs)?\s*(.*?)```') {
+            $code = $Matches[1]
+          }
+          [System.IO.File]::WriteAllText((Join-Path $pwd "ExtraExtract.cs"), $code.Trim())
+          Write-Host "Wrote ExtraExtract.cs from issue #$n"
+
+      - name: Run parser and post mailbox
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
+        shell: pwsh
+        run: |
+          $out = & dotnet run --configuration Release *>&1 | Out-String
+          Write-Host $out
+          $code = $LASTEXITCODE
+          if ($out -match "No log files found") { $code = 2 }
+          $sid = ""
+          if ($out -match "session_id=(\S+)") { $sid = $Matches[1] }
+          if ($code -eq 0 -and $out -match "successfully parsed") {
+            $body = "RUN=PASS`nsession_id=$sid`n`n$out"
+          } else {
+            $body = "RUN=FAIL`nsession_id=$sid`n`n$out"
+          }
+          $n = $env:ISSUE_NUMBER
+          if ($n) {
+            $headers = @{
+              Authorization = "Bearer $env:GH_TOKEN"
+              Accept        = "application/vnd.github+json"
+            }
+            $json = @{ body = $body } | ConvertTo-Json
+            Invoke-RestMethod -Method PATCH -Uri "https://api.github.com/repos/$($env:GITHUB_REPOSITORY)/issues/$n" -Headers $headers -Body $json -ContentType "application/json"
+            Write-Host "Updated issue #$n"
+          }
+          if ($code -ne 0) { exit $code }
