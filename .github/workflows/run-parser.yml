@@ -1,6 +1,5 @@
 # Catalog parser on the lab PC runner.
-# Does not clone (work PC blocks that). Runs the local C# project like F5.
-# Studio: Create an issue then dispatch run-parser with issue_number.
+# Runs C#\github-run.ps1 (writes ExtraExtract from the issue, then dotnet run).
 
 name: Run catalog parser
 
@@ -23,19 +22,9 @@ jobs:
     env:
       PARSER_DIR: C:\Users\syaidatul.salmah\source\repos\AI-Parser-Development\C#
     steps:
-      - name: Apply ExtraExtract from mailbox issue
-        if: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
+      - name: Run parser
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
         shell: cmd
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -Command "$repo=$env:GITHUB_REPOSITORY; $n=$env:ISSUE_NUMBER; $headers=@{ Authorization = ('Bearer ' + $env:GH_TOKEN); Accept = 'application/vnd.github+json' }; $issue=Invoke-RestMethod -Uri ('https://api.github.com/repos/' + $repo + '/issues/' + $n) -Headers $headers; $code=[string]$issue.body; if ($code -match '(?s)```(?:csharp|cs)?\s*(.*?)\r?\n```') { $code=$Matches[1] }; [System.IO.File]::WriteAllText((Join-Path $env:PARSER_DIR 'ExtraExtract.cs'), $code.Trim()); Write-Host ('Wrote ExtraExtract.cs from issue #' + $n)"
-
-      - name: Run parser and post mailbox
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
-        shell: cmd
-        run: |
-          powershell -NoProfile -ExecutionPolicy Bypass -Command "Set-Location $env:PARSER_DIR; $out = & dotnet run --configuration Release *>&1 | Out-String; Write-Host $out; $code = $LASTEXITCODE; if ($out -match 'No log files found') { $code = 2 }; $sid = ''; if ($out -match 'session_id=(\S+)') { $sid = $Matches[1] }; if ($code -eq 0 -and $out -match 'successfully parsed') { $body = 'RUN=PASS' + [char]10 + 'session_id=' + $sid + [char]10 + [char]10 + $out } else { $body = 'RUN=FAIL' + [char]10 + 'session_id=' + $sid + [char]10 + [char]10 + $out }; $n = $env:ISSUE_NUMBER; if ($n) { $headers = @{ Authorization = ('Bearer ' + $env:GH_TOKEN); Accept = 'application/vnd.github+json' }; $json = @{ body = $body } | ConvertTo-Json; Invoke-RestMethod -Method PATCH -Uri ('https://api.github.com/repos/' + $env:GITHUB_REPOSITORY + '/issues/' + $n) -Headers $headers -Body $json -ContentType 'application/json'; Write-Host ('Updated issue #' + $n) }; if ($code -ne 0) { exit $code }"
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "%PARSER_DIR%\github-run.ps1"
