@@ -21,10 +21,17 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Get repo with git
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          if (Test-Path repo) { Remove-Item repo -Recurse -Force }
+          git -c http.sslBackend=schannel -c "http.extraheader=AUTHORIZATION: bearer $env:GH_TOKEN" clone --depth 1 "https://github.com/$($env:GITHUB_REPOSITORY).git" repo
 
       - name: Apply ExtraExtract from mailbox issue
         if: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
+        working-directory: repo
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
@@ -45,6 +52,7 @@ jobs:
           Write-Host "Wrote ExtraExtract.cs from issue #$n"
 
       - name: Run parser and post mailbox
+        working-directory: repo
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.client_payload.issue_number || github.event.inputs.issue_number }}
